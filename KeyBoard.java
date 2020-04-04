@@ -12,4 +12,16 @@ public class KeyBoard {
 
     public native void close(int fd);
 
+    static {
+        System.out.println(System.getProperty("java.library.path"));
+        System.loadLibrary("keyboard");
+    }
+
+    public static void main(String argv[]) {
+        
+        KeyBoard keyBoard = new KeyBoard();
+        int fd = keyBoard.open("/dev/input/event0");
+        System.out.println(keyBoard.readLine(fd));
+        keyBoard.close(fd);
+    }
 }

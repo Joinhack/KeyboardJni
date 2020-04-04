@@ -1,22 +1,26 @@
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <linux/input.h>
 #include "biz_pi_KeyBoard.h"
 
 #define KEY_EL(idx, val) [idx] = val
 
-JNIEXPORT jint JNICALL Java_biz_pi_KeyBoard_open(JNIEnv *env, jobject, jstring name) {
-    char *ptr = GetStringUTFChars(env, name, true);
+JNIEXPORT jint JNICALL Java_biz_pi_KeyBoard_open(JNIEnv *env, jobject o, jstring name) {
+    jboolean isCopy = 0;
     int fd;
+    char *ptr = NULL;
+    ptr = (*env)->GetStringUTFChars(env, name, &isCopy);
     if (ptr == NULL) 
         return -1;
-    fd = open(ptr, O_RDONLY);
-    ReleaseStringUTFChars(env, name, ptr);
+    fd = open(ptr, O_RDONLY|O_NONBLOCK);
+    (*env)->ReleaseStringUTFChars(env, name, ptr);
     return fd;
 }
 
-JNIEXPORT void JNICALL Java_biz_pi_KeyBoard_close(JNIEnv *, jobject, jint fd) {
+JNIEXPORT void JNICALL Java_biz_pi_KeyBoard_close(JNIEnv *env, jobject o, jint fd) {
     if (fd >= 0)
         close(fd);
 }
@@ -55,24 +59,39 @@ static char KEYS[KEY_MAX + 1] = {
 };
 
 
-
-
-// struct input_event buff;
-// int main(int argc, char *argv[])
-// {
-//     int fd = open("/dev/input/event0", O_RDONLY);
-//     if (fd < 0) { 
-//         perror("can not open device usbscanner!"); 
-//         exit(1); 
-//     } 
-//     int i = 0;
-//     printf("--fd:%d--\n",fd);
-//     while(1)
-//     {
-//         int i = read(fd,&buff,sizeof(struct input_event));
-//         printf("%d", i);
-//         printf("type:%d code:%d value:%d\n",buff.type,buff.code,buff.value); 
-//     }
-//     close(fd); 
-//     return 1;
-// }
+JNIEXPORT jbyteArray JNICALL Java_biz_pi_KeyBoard_readline(JNIEnv *env, jobject o, jint fd) {
+    struct pollfd fds[1];
+    struct input_event evts[64];
+    int prs, n, p, idx;
+    jbyteArray rs = NULL;
+    char buff[2048];
+    fds[0].events = POLLIN;
+    fds[0].fd = fd;
+    idx = 0;
+    while(1) {
+        int i;
+        char kv;
+        if ((prs = poll(fds, 1, 200)) < 0) {
+            return rs;
+        }
+        n = read(fd, &evts, sizeof(evts));
+        for (i = 0; i < sizeof(evts)/sizeof(struct input_event) && idx < sizeof(buff); i++) {
+            if (evts[i].type == EV_SYN && i - 1 > 0) {
+                if (evts[i - 1].type == EV_KEY) {
+                    if ((kv = KEYS[evts[i - 1].code]) != '\0') {
+                        buff[idx++] == kv;
+                    }
+                }
+            }
+        }
+        if (prs == 0) {
+            if (buff[idx] == '\n')
+                break;
+        }
+    }
+    if (idx > 0) {
+        rs = (*env)->NewByteArray(env, idx);
+        (*env)->SetByteArrayRegion(env, rs, 0, idx, buff);
+    }
+    return rs;
+}
