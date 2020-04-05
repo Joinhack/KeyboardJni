@@ -11,8 +11,7 @@
 JNIEXPORT jint JNICALL Java_biz_pi_KeyBoard_open(JNIEnv *env, jobject o, jstring name) {
     jboolean isCopy = 0;
     int fd;
-    char *ptr = NULL;
-    ptr = (*env)->GetStringUTFChars(env, name, &isCopy);
+    const char *ptr = (*env)->GetStringUTFChars(env, name, &isCopy);
     if (ptr == NULL) 
         return -1;
     fd = open(ptr, O_RDONLY|O_NONBLOCK);
