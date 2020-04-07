@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <linux/input.h>
+#include <errno.h>
 #include "biz_pi_KeyBoard.h"
 
 #define KEY_EL(idx, val) [idx] = val
@@ -71,21 +72,23 @@ JNIEXPORT jbyteArray JNICALL Java_biz_pi_KeyBoard_readline(JNIEnv *env, jobject 
         int i;
         char kv;
         if ((prs = poll(fds, 1, 200)) < 0) {
+            printf("error code:%d, msg: %s\n", errno, strerror(errno));
             return rs;
-        }
-        n = read(fd, &evts, sizeof(evts));
-        for (i = 0; i < sizeof(evts)/sizeof(struct input_event) && idx < sizeof(buff); i++) {
-            if (evts[i].type == EV_SYN && i - 1 > 0) {
-                if (evts[i - 1].type == EV_KEY) {
-                    if ((kv = KEYS[evts[i - 1].code]) != '\0') {
-                        buff[idx++] == kv;
+        } else if (prs == 0) {
+            if (idx > 0 && buff[idx - 1] == '\n') {
+                break;
+            }
+        } else if (prs > 0) {
+            n = read(fd, &evts, sizeof(evts));
+            for (i = 0; i < sizeof(evts)/sizeof(struct input_event) && idx < sizeof(buff); i++) {
+                if (evts[i].type == EV_SYN && i - 1 > 0) {
+                    if (evts[i - 1].type == EV_KEY) {
+                        if (evts[i - 1].value == 1 && (kv = KEYS[evts[i - 1].code]) != '\0') {
+                            buff[idx++] = kv;
+                        }
                     }
                 }
             }
-        }
-        if (prs == 0) {
-            if (buff[idx] == '\n')
-                break;
         }
     }
     if (idx > 0) {
