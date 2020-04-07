@@ -58,6 +58,39 @@ static char KEYS[KEY_MAX + 1] = {
     KEY_EL(KEY_CAPSLOCK, '\0')
 };
 
+static char UPPER_KEYS[KEY_MAX + 1] = {
+    [0 ... KEY_MAX] = '\0',
+    KEY_EL(KEY_1, '!'), KEY_EL(KEY_2, '@'),
+    KEY_EL(KEY_3, '#'), KEY_EL(KEY_4, '$'),
+    KEY_EL(KEY_5, '%'), KEY_EL(KEY_6, '^'),
+    KEY_EL(KEY_7, '&'), KEY_EL(KEY_8, '*'),
+    KEY_EL(KEY_9, '('), KEY_EL(KEY_0, ')'),
+    KEY_EL(KEY_MINUS, '_'), KEY_EL(KEY_EQUAL, '+'),
+    KEY_EL(KEY_BACKSPACE, '\b'), KEY_EL(KEY_TAB, '\t'),
+    KEY_EL(KEY_Q, 'Q'),			KEY_EL(KEY_W, 'W'),
+    KEY_EL(KEY_E, 'E'),			KEY_EL(KEY_R, 'R'),
+    KEY_EL(KEY_T, 'T'),			KEY_EL(KEY_Y, 'Y'),
+    KEY_EL(KEY_U, 'U'),			KEY_EL(KEY_I, 'I'),
+    KEY_EL(KEY_O, 'O'),			KEY_EL(KEY_P, 'P'),
+    KEY_EL(KEY_LEFTBRACE, '{'),		KEY_EL(KEY_RIGHTBRACE, '}'),
+    KEY_EL(KEY_ENTER, '\n'),		KEY_EL(KEY_LEFTCTRL, '\0'),
+    KEY_EL(KEY_A, 'A'),			KEY_EL(KEY_S, 'S'),
+    KEY_EL(KEY_D, 'D'),			KEY_EL(KEY_F, 'F'),
+    KEY_EL(KEY_G, 'G'),			KEY_EL(KEY_H, 'H'),
+    KEY_EL(KEY_J, 'J'),			KEY_EL(KEY_K, 'K'),
+    KEY_EL(KEY_L, 'L'),			KEY_EL(KEY_SEMICOLON, ':'),
+    KEY_EL(KEY_APOSTROPHE, '"'),		KEY_EL(KEY_GRAVE, '~'),
+    KEY_EL(KEY_LEFTSHIFT, '\0'),		KEY_EL(KEY_BACKSLASH, '|'),
+    KEY_EL(KEY_Z, 'Z'),			KEY_EL(KEY_X, 'X'),
+    KEY_EL(KEY_C, 'C'),			KEY_EL(KEY_V, 'V'),
+    KEY_EL(KEY_B, 'B'),			KEY_EL(KEY_N, 'N'),
+    KEY_EL(KEY_M, 'M'),			KEY_EL(KEY_COMMA, '<'),
+    KEY_EL(KEY_DOT, '>'),			KEY_EL(KEY_SLASH, '?'),
+    KEY_EL(KEY_RIGHTSHIFT, '\0'),		KEY_EL(KEY_KPASTERISK, '\0'),
+    KEY_EL(KEY_LEFTALT, '\0'),		KEY_EL(KEY_SPACE, ' '),
+    KEY_EL(KEY_CAPSLOCK, '\0')
+};
+
 
 JNIEXPORT jbyteArray JNICALL Java_biz_pi_KeyBoard_readline(JNIEnv *env, jobject o, jint fd) {
     struct pollfd fds[1];
@@ -71,6 +104,8 @@ JNIEXPORT jbyteArray JNICALL Java_biz_pi_KeyBoard_readline(JNIEnv *env, jobject 
     while(1) {
         int i;
         char kv;
+        int shift = 0;
+        char *mapper = KEYS;
         if ((prs = poll(fds, 1, 200)) < 0) {
             printf("error code:%d, msg: %s\n", errno, strerror(errno));
             return rs;
@@ -81,12 +116,21 @@ JNIEXPORT jbyteArray JNICALL Java_biz_pi_KeyBoard_readline(JNIEnv *env, jobject 
         } else if (prs > 0) {
             n = read(fd, &evts, sizeof(evts));
             for (i = 0; i < sizeof(evts)/sizeof(struct input_event) && idx < sizeof(buff); i++) {
-                if (evts[i].type == EV_SYN && i - 1 > 0) {
-                    if (evts[i - 1].type == EV_KEY) {
-                        if (evts[i - 1].value == 1 && (kv = KEYS[evts[i - 1].code]) != '\0') {
-                            buff[idx++] = kv;
-                        }
-                    }
+                if (evts[i].type == EV_KEY &&  
+                    (evts[i].code == KEY_LEFTSHIFT || evts[i].code == KEY_RIGHTSHIFT)) {
+                    if (evts[i].value == 1)
+                        shift = 1;
+                    else
+                        shift = 0;
+                }
+
+                if (shift == 1) {
+                    mapper = UPPER_KEYS;
+                }
+                if (evts[i].type == EV_KEY && 
+                    evts[i].value == 1 && 
+                    (kv = mapper[evts[i].code]) != '\0') {
+                    buff[idx++] = kv;
                 }
             }
         }
